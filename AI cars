@@ -1,0 +1,225 @@
+using UnityEngine;
+using System.Collections;
+
+public class ControlCarScript : MonoBehaviour
+{
+	public Transform Target;// ���� ����
+	public float MaxDistance = 5;// ��������� �� ���� ��� ���������� ������� �� ����� ���������� �� ����
+	public float MaxAlienation = 4;// ��������� ���������
+	public GameObject[] Targets;// ������ ����� ���� 
+	public float TimeTargetUpdate = 2;// ����� ����� ����� ��� ������� ����
+	private float TimerUpdateTarget;// ������ �������� ����  
+	private bool ModeAlienation;// ���� ��� ����������� ����� ��� MaxDistance, �� true � �� �������� ���������
+	public WheelCollider WheelBackLeftCol;// ��������� ����
+	public WheelCollider WheelBackRightCol;
+	public WheelCollider WheelForwardLeftCol;
+	public WheelCollider WheelForwardRightCol;
+
+	public Transform WheelBackLeftTransform;// ������� ����
+	public Transform WheelBackRightTransform;
+	public Transform WheelForwardLeftTransform;
+	public Transform WheelForwardRightTransform;
+
+	public Transform CentrOfMass;// ����� ������� ����
+
+	public float maxAccel = 25;// ���������
+	public float maxBrake = 50;// ���� ����������
+	public float maxRotate = 30;// ���� �������� ����
+	public float maxSpeed = 60;// ��������
+
+	private float StartRadiusBackLeft;// ������ ������� ���� ���� �� �����������
+	private float StartRadiusBackRight;
+	private float StartRadiusForwardLeft;
+	private float StartRadiusForwardRight;
+
+	private float StartSusDistBackLeft;// ������ ������ �������� ���� ���� �� �����������
+	private float StartSusDistBackRight;
+	private float StartSusDistForwardLeft;
+	private float StartSusDistForwardRight;
+
+	private Vector3 wheelStartPosBackLeft;// ��������� ��������� ����
+	private Vector3 wheelStartPosBackRight;
+	private Vector3 wheelStartPosForwardLeft;
+	private Vector3 wheelStartPosForwardRight;
+
+	private float WheelRotationBackLeft;
+	private float WheelRotationBackRight;
+	private float WheelRotationForwardLeft;
+	private float WheelRotationForwardRight;
+
+	void Start()
+	{// ��� ��� ������ ������ ����
+		if (WheelBackLeftCol == null || WheelBackRightCol == null || WheelForwardLeftCol == null || WheelForwardRightCol == null)
+		{
+			print("No Wheel Collider");// ���� ��� ������-�� �� ����������
+			return;
+		}
+		if (WheelBackLeftTransform == null || WheelBackRightTransform == null || WheelForwardLeftTransform == null || WheelForwardRightTransform == null)
+		{
+			print("No Transform");// ���� ��� ����� 
+			return;
+		}
+		if (CentrOfMass == null)
+		{
+			print("No Centr Of Mass");// ���� ��� ����� 
+			return;
+		}
+
+		StartRadiusBackLeft = WheelBackLeftCol.radius;// ������ ������� ���� ���� �� �����������
+		StartRadiusBackRight = WheelBackRightCol.radius;
+		StartRadiusForwardLeft = WheelForwardLeftCol.radius;
+		StartRadiusForwardRight = WheelForwardRightCol.radius;
+
+		StartSusDistBackLeft = WheelBackLeftCol.suspensionDistance;// ������ ������ �������� ���� ���� �� �����������
+		StartSusDistBackRight = WheelBackRightCol.suspensionDistance;
+		StartSusDistForwardLeft = WheelForwardLeftCol.suspensionDistance;
+		StartSusDistForwardRight = WheelForwardRightCol.suspensionDistance;
+
+		wheelStartPosBackLeft = WheelBackLeftTransform.localPosition;// ������ ���������� ��������� ����
+		wheelStartPosBackRight = WheelBackRightTransform.localPosition;
+		wheelStartPosForwardLeft = WheelForwardLeftTransform.localPosition;
+		wheelStartPosForwardRight = WheelForwardRightTransform.localPosition;
+
+		GetComponent<Rigidbody>().centerOfMass = CentrOfMass.localPosition;// ����� ����� �������
+	}
+
+	void Update()
+	{
+		float accel = 0f;// ��� ���������� ����� �� 1 �� -1 ��� ��� ������ �������� ���� � �����
+		float rotare = 0f;// ��� ���������� ����� ��������� ���� �������� ���� � ������� maxRotate
+		float angleAccel = 0f;// ��� ���������� ����� ��������� ���� ������������ ����� ���������
+		float angleRotate = 0f;// ��� ���������� ����� ��������� ���� ������������ ������� ���������
+		if (Target == null)
+		{// ���� ���������� Target �����
+			Targets = GameObject.FindGameObjectsWithTag("Player");// 
+			if (Targets == null && Targets.Length == 1) return;// ���� ���� ���� ��� �� ����� ��� �� ������������� ����������
+			for (int T = 0; T < Targets.Length; T++)
+			{
+				if (transform != Targets[T].transform)
+				{// ���� ���� �� ��� ���
+					Target = Targets[T].transform;// ����� ����� ����
+				}
+			}
+		}
+		else
+		{// ���� ���������� �� ����� 
+			TimerUpdateTarget += Time.deltaTime;// ������� ������
+			if (TimerUpdateTarget >= TimeTargetUpdate)
+			{// ���� ����� ��������� ����, ��
+				Targets = GameObject.FindGameObjectsWithTag("Player");// ��������� ������ ����� 
+				for (int T = 0; T < Targets.Length; T++)
+				{
+					if (Vector3.Distance(transform.position, Target.position) > Vector3.Distance(transform.position, Targets[T].transform.position) && transform != Targets[T].transform)
+					{// ���� �� ����� ���� ����� ��� �� ������
+						Target = Targets[T].transform;// ����� ����� ����
+					}
+				}
+				TimerUpdateTarget = 0;// �������� ������
+			}
+		}
+		if (Target != null)
+		{// ���� ���� ����	
+			if (ModeAlienation == false)
+			{// ���� �� �������� ��������
+				angleAccel = -(Vector3.Angle(Target.position - transform.position, transform.forward) - 90);// ��� ���� ����� ����� � ����� ��� ����������� ���� ������������ ����� ���������(���.)
+				accel = Mathf.Clamp(angleAccel, -1, 1);// ����� accel � ���������� �� -1 �� 1
+				if (accel > 0)
+				{// ���� ���� �������
+					angleRotate = -(Vector3.Angle(Target.position - transform.position, transform.right) - 90);// ��� ���� ����� ����� � ����� ��� ����������� ���� ������������ ������� ���������(���.)
+				}
+				else
+				{//ec�� ���� �����
+					angleRotate = Vector3.Angle(Target.position - transform.position, transform.right) - 90;// ��� ���� ����� ����� � ����� ��� ����������� ���� ������������ ������� ���������(���.)
+				}
+				rotare = Mathf.Clamp(angleRotate, -maxRotate, maxRotate);// ����� rotare � ���������� �� -maxRotate �� maxRotate
+				if (MaxDistance > Vector3.Distance(transform.position, Target.position))
+				{// ���� MaxDistance ������ ��������� �� ����
+					ModeAlienation = true;// �������� �������� ����� ��� ��������
+				}
+			}
+			else
+			{// ���� ��������
+				angleAccel = (Vector3.Angle(Target.position - transform.position, transform.forward) - 90);// ��� ���� ����� ����� � ����� ��� ����������� ���� ������������ ����� ���������(���.) � ���������
+				accel = Mathf.Clamp(angleAccel, -1, 1);// ����� accel � ���������� �� -1 �� 1
+				angleRotate = Vector3.Angle(Target.position - transform.position, transform.right) - 90;// ��� ���� ����� ����� � ����� ��� ����������� ���� ������������ ������� ���������(���.) � ���������
+				rotare = Mathf.Clamp(angleRotate, -maxRotate, maxRotate);// ����� rotare � ���������� �� -maxRotate �� maxRotate
+				if (MaxDistance + MaxAlienation < Vector3.Distance(transform.position, Target.position))
+				{// ���� ��� ���������� ���������
+					ModeAlienation = false;// ��������� ����� ��������
+				}
+			}
+		}
+		CarMove(accel, rotare);// ������� ��������
+		UpdateWheels();// ������� ��������� ������
+	}
+
+	private void CarMove(float accel, float rotare)
+	{// ���������� ����������	
+		if (accel > 0)
+		{
+			if (WheelBackLeftCol.rpm < 0) WheelBackLeftCol.brakeTorque = maxBrake;
+			if (WheelBackRightCol.rpm < 0) WheelBackRightCol.brakeTorque = maxBrake;
+			else
+			{
+				WheelBackLeftCol.brakeTorque = 0;
+				WheelBackRightCol.brakeTorque = 0;
+				if (WheelBackLeftCol.rpm > maxSpeed * 10) WheelBackLeftCol.motorTorque = 0;
+				else WheelBackLeftCol.motorTorque = accel * maxAccel;
+
+				if (WheelBackRightCol.rpm > maxSpeed * 10) WheelBackRightCol.motorTorque = 0;
+				else WheelBackRightCol.motorTorque = accel * maxAccel;
+			}
+		}
+		else if (accel < 0)
+		{
+			if (WheelBackLeftCol.rpm > 0) WheelBackLeftCol.brakeTorque = maxBrake;
+			if (WheelBackRightCol.rpm > 0) WheelBackRightCol.brakeTorque = maxBrake;
+			else
+			{
+				WheelBackLeftCol.brakeTorque = 0;
+				WheelBackRightCol.brakeTorque = 0;
+				if (WheelBackLeftCol.rpm < -maxSpeed * 10) WheelBackLeftCol.motorTorque = 0;
+				else WheelBackLeftCol.motorTorque = accel * maxAccel;
+
+				if (WheelBackRightCol.rpm < -maxSpeed * 10) WheelBackRightCol.motorTorque = 0;
+				else WheelBackRightCol.motorTorque = accel * maxAccel;
+			}
+		}
+
+		WheelForwardLeftCol.steerAngle = rotare;
+		WheelForwardRightCol.steerAngle = rotare;
+	}
+
+	private void UpdateWheels()
+	{// ������� ��������� ������
+		WheelHit hit;
+		Vector3 lpBl = WheelBackLeftTransform.localPosition;
+		Vector3 lpBr = WheelBackRightTransform.localPosition;
+		Vector3 lpFl = WheelForwardLeftTransform.localPosition;
+		Vector3 lpFr = WheelForwardRightTransform.localPosition;
+
+		if (WheelBackLeftCol.GetGroundHit(out hit)) lpBl.y -= Vector3.Dot(WheelBackLeftTransform.position - hit.point, transform.up) - StartRadiusBackLeft;
+		else lpBl.y = wheelStartPosBackLeft.y - StartSusDistBackLeft;
+		if (WheelBackRightCol.GetGroundHit(out hit)) lpBr.y -= Vector3.Dot(WheelBackRightTransform.position - hit.point, transform.up) - StartRadiusBackRight;
+		else lpBr.y = wheelStartPosBackRight.y - StartSusDistBackRight;
+		if (WheelForwardLeftCol.GetGroundHit(out hit)) lpFl.y -= Vector3.Dot(WheelForwardLeftTransform.position - hit.point, transform.up) - StartRadiusForwardLeft;
+		else lpFl.y = wheelStartPosForwardLeft.y - StartSusDistForwardLeft;
+		if (WheelForwardRightCol.GetGroundHit(out hit)) lpFr.y -= Vector3.Dot(WheelForwardRightTransform.position - hit.point, transform.up) - StartRadiusForwardRight;
+		else lpFr.y = wheelStartPosForwardRight.y - StartSusDistForwardRight;
+
+		WheelBackLeftTransform.localPosition = lpBl;
+		WheelBackRightTransform.localPosition = lpBr;
+		WheelForwardLeftTransform.localPosition = lpFl;
+		WheelForwardRightTransform.localPosition = lpFr;
+
+		WheelRotationBackLeft = Mathf.Repeat(WheelRotationBackLeft + Time.fixedDeltaTime * WheelBackLeftCol.rpm * 360.0f / 60.0f, 360.0f);
+		WheelRotationBackRight = Mathf.Repeat(WheelRotationBackRight + Time.fixedDeltaTime * WheelBackRightCol.rpm * 360.0f / 60.0f, 360.0f);
+		WheelRotationForwardLeft = Mathf.Repeat(WheelRotationForwardLeft + Time.fixedDeltaTime * WheelForwardLeftCol.rpm * 360.0f / 60.0f, 360.0f);
+		WheelRotationForwardRight = Mathf.Repeat(WheelRotationForwardRight + Time.fixedDeltaTime * WheelForwardRightCol.rpm * 360.0f / 60.0f, 360.0f);
+
+		WheelBackLeftTransform.localRotation = Quaternion.Euler(WheelRotationBackLeft, WheelBackLeftCol.steerAngle, 90.0f);
+		WheelBackRightTransform.localRotation = Quaternion.Euler(WheelRotationBackRight, WheelBackRightCol.steerAngle, 90.0f);
+		WheelForwardLeftTransform.localRotation = Quaternion.Euler(WheelRotationForwardLeft, WheelForwardLeftCol.steerAngle, 90.0f);
+		WheelForwardRightTransform.localRotation = Quaternion.Euler(WheelRotationForwardRight, WheelForwardRightCol.steerAngle, 90.0f);
+	}
+}
